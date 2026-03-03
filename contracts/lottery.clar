@@ -46,6 +46,40 @@
     (var-set current-pot (+ (var-get current-pot) TICKET_PRICE))
     (ok new-ticket-id)))
 
+;; Buy multiple tickets at once
+(define-public (buy-tickets (quantity uint))
+  (let (
+    (total-cost (* TICKET_PRICE quantity))
+    (start-id (var-get ticket-count))
+  )
+    (asserts! (var-get is-open) ERR_LOTTERY_CLOSED)
+    (asserts! (> quantity u0) ERR_INVALID_AMOUNT)
+    (asserts! (<= quantity u10) (err u103)) ;; Max 10 tickets per tx
+    (try! (stx-transfer? total-cost tx-sender (as-contract tx-sender)))
+    (fold assign-ticket (list u1 u2 u3 u4 u5 u6 u7 u8 u9 u10) { count: u0, target: quantity, base: start-id })
+    (var-set ticket-count (+ start-id quantity))
+    (var-set current-pot (+ (var-get current-pot) total-cost))
+    (ok quantity)))
+
+;; Helper for bulk ticket assignment
+(define-private (assign-ticket (i uint) (state { count: uint, target: uint, base: uint }))
+  (if (< (get count state) (get target state))
+    (begin
+      (map-set tickets (+ (get base state) (+ (get count state) u1)) tx-sender)
+      { count: (+ (get count state) u1), target: (get target state), base: (get base state) })
+    state))
+
+;; Get player ticket count
+(define-read-only (get-player-tickets (player principal))
+  (fold count-player-tickets (list u1 u2 u3 u4 u5 u6 u7 u8 u9 u10) { player: player, count: u0 }))
+
+(define-private (count-player-tickets (id uint) (state { player: principal, count: uint }))
+  (match (map-get? tickets id)
+    owner (if (is-eq owner (get player state))
+            { player: (get player state), count: (+ (get count state) u1) }
+            state)
+    state))
+
 (define-public (draw-winner)
   (let (
     (pot (var-get current-pot))
